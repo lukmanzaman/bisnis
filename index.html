@@ -2932,11 +2932,11 @@
         </div>
 
         <!-- Continuous Vertical Infographic Stream -->
-        <main class="doom-feed" id="doomFeed" onclick="toggleNav();"></main>
+        <main class="doom-feed" id="doomFeed"></main>
     </div>
 
     <!-- Load Embedded Dataset (With Cache Buster) -->
-    <script src="data.js?v=1787692282"></script>
+    <script src="data.js?v=1787692885"></script>
 
     <script>
         const libraryData = (window.libraryData || []).map(folder => {
@@ -2982,9 +2982,10 @@
         let imageObserver = null;
         let isScrollTicking = false;
         let isRestoringScroll = false;
+        let saveScrollTimeout = null;
         let selectedThemeFilter = '';
 
-        // Visibility Controls for Floating Navbar
+        // Visibility Controls (Default: lenyap, toggle via tap/click)
         function showNav() { nav.classList.remove('nav-hidden'); }
         function hideNav() { closePickerDropdown(); nav.classList.add('nav-hidden'); }
         function toggleNav() {
@@ -2992,7 +2993,7 @@
             else hideNav();
         }
 
-        // Independent Position Store per Folder (LocalStorage + Cookie)
+        // Independent Position Store per Folder (LocalStorage)
         let folderPositions = {};
         function loadAllPositions() {
             let loaded = {};
@@ -3150,6 +3151,9 @@
             navFolderTitle.textContent = folder.displayName;
             document.title = `${folder.displayName} • VIS Money Stream`;
 
+            // Default lenyap saat masuk reader agar tidak menghalangi
+            hideNav();
+
             // Build Picker Dropdown
             pickerTotalBadge.textContent = `${folder.imageCount} Poster`;
             navPickerList.innerHTML = '';
@@ -3186,7 +3190,6 @@
             doomFeed.innerHTML = feedHtml;
 
             setupLazyObserver();
-            showNav();
 
             // Handle scroll position restoration
             let savedPos = folderPositions[folder.rawName];
@@ -3240,31 +3243,35 @@
             });
         }
 
-        // Active Article Tracker on Scroll
-        let lastScrollTop = 0;
-        window.addEventListener('scroll', () => {
-            if (document.body.className !== 'view-reader') return;
+        // Scroll listener: langsung sembunyikan navbar saat user mulai scroll
+        function handleReaderScroll() {
+            if (!currentActiveFolder || isRestoringScroll) return;
 
-            const st = window.pageYOffset || document.documentElement.scrollTop;
-
-            // Auto hide/show nav
-            if (st > lastScrollTop && st > 150) {
+            // Sembunyikan navbar saat user mulai scroll membaca
+            if (!nav.classList.contains('nav-hidden')) {
                 hideNav();
-            } else if (st < lastScrollTop) {
-                showNav();
             }
-            lastScrollTop = Math.max(0, st);
 
-            // Throttle active frame detection
             if (!isScrollTicking) {
-                window.requestAnimationFrame(() => {
+                isScrollTicking = true;
+                requestAnimationFrame(() => {
+                    if (!currentActiveFolder || isRestoringScroll) {
+                        isScrollTicking = false;
+                        return;
+                    }
+
                     detectCurrentArticle();
-                    saveCurrentPosition();
                     isScrollTicking = false;
                 });
-                isScrollTicking = true;
             }
-        }, { passive: true });
+
+            if (saveScrollTimeout) clearTimeout(saveScrollTimeout);
+            saveScrollTimeout = setTimeout(() => {
+                if (!currentActiveFolder || isRestoringScroll) return;
+                saveCurrentPosition();
+            }, 100);
+        }
+        window.addEventListener('scroll', handleReaderScroll, { passive: true });
 
         function detectCurrentArticle() {
             const frames = doomFeed.querySelectorAll('.article-frame');
@@ -3310,6 +3317,28 @@
             restoreToast.classList.add('show');
             setTimeout(() => { restoreToast.classList.remove('show'); }, 2500);
         }
+
+        // ================= TAP/CLICK SCREEN LISTENER (PERSIS SEPERTI MARKETING SITE) =================
+        document.addEventListener('click', (e) => {
+            if (!currentActiveFolder) {
+                document.querySelectorAll('.card-dropdown-menu').forEach(m => m.classList.remove('show'));
+                document.querySelectorAll('.btn-card-list').forEach(b => b.classList.remove('active'));
+                closePickerDropdown();
+                closeSearchDropdown();
+                return;
+            }
+
+            if (e.target.closest('#readerNav') || e.target.closest('#restoreToast')) {
+                return;
+            }
+
+            // Tekan area atas (<= 90px) untuk toggle nav, tekan area lain untuk langsung lenyapkan
+            if (e.clientY <= 90) {
+                toggleNav();
+            } else {
+                hideNav();
+            }
+        });
 
         // ================= HOME VIEW DROPDOWNS & THEME CHIPS =================
         function toggleCardDropdown(btn) {
