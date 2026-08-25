@@ -2935,11 +2935,20 @@
         <main class="doom-feed" id="doomFeed" onclick="toggleNav();"></main>
     </div>
 
-    <!-- Load Embedded Dataset -->
-    <script src="data.js"></script>
+    <!-- Load Embedded Dataset (With Cache Buster) -->
+    <script src="data.js?v=1787692282"></script>
 
     <script>
-        const libraryData = window.libraryData || [];
+        const libraryData = (window.libraryData || []).map(folder => {
+            if (folder && folder.images) {
+                folder.images.forEach(img => {
+                    if (img && img.url) {
+                        img.url = img.url.replace(/\.png$/i, '.jpg');
+                    }
+                });
+            }
+            return folder;
+        });
         const folderMap = {};
         libraryData.forEach(f => {
             folderMap[f.rawName] = f;
